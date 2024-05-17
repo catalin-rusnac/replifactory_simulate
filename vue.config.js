@@ -1,4 +1,8 @@
-const { defineConfig } = require('@vue/cli-service')
-module.exports = defineConfig({
-  transpileDependencies: true
-})
+// vue.config.js
+module.exports = {
+  publicPath: process.env.DEPLOY_TARGET === 'github' ? '/replifactory_simulate/' : '/',
+  outputDir: 'simulation/dist',
+  devServer: {
+    hot: true, // Ensure HMR is active
+  },
+}
