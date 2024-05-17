@@ -1,19 +1,21 @@
 <template>
   <div>
-    <TableComponent/>
-  <SimulationComponent msg="Welcome to Your Vue.js App"/>
-
+  <GameComponent />
   </div>
+  <div>
+  <SimulationComponent msg="Welcome to Your Vue.js App"/>
+  </div>
+
 </template>
 
 <script>
 import SimulationComponent from './components/SimulationComponent.vue'
-import TableComponent from './components/TableComponent.vue'
+import GameComponent from './components/GameComponent.vue'
 export default {
   name: 'App',
   components: {
     SimulationComponent,
-    TableComponent
+    GameComponent
   }
 }
 </script>

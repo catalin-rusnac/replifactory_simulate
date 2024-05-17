@@ -1,48 +1,76 @@
-<script setup>
-// from simulation/src/components/SimulationComponent.vue:
+<script>
+// this.effectiveGrowthRates - array of [growth rate, time] (growth rate animated as bacteria dividing faster and growth-o-meter increasing)
+// this.ic50s - array of [ic50, time]  (half-inhibitory concentration - animated as bacteria muscle size (or medal count or something))
+// this.adaptationRates - array of [adaptation rate, time] (adaptation rate animated as bacteria becoming more muscular)
+// stress_level = this.effectiveDoses[time] / this.ic50s[time] (stress level animated as bacteria turning red or changing smile curvature or sweating or something)
 
-
-// simulateExperimentMinute() {
-//         let effectiveDose = this.calculateEffectiveDose(this.timeCurrent);
-//         this.effectiveDoses.push([effectiveDose, this.timeCurrent]);
-//         let effectiveGrowthRate = 0;
-//         if (this.population.length) {
-//             effectiveGrowthRate = muEffective(effectiveDose, this.muMin, this.muMax, this.ic10Ic50Ratio,
-//                                                   this.ic50s[this.ic50s.length - 1][0], this.population[this.population.length - 1][0], this.carryingCapacity);
-//             this.effectiveGrowthRates.push([effectiveGrowthRate, this.timeCurrent]);
-//         }
-//
-//         if (effectiveDose > 0) {
-//             let adaptRate = adaptationRate(effectiveDose, this.adaptationRateMax, this.ic50s[this.ic50s.length - 1][0],
-//                                            this.ic10Ic50Ratio, this.adaptationRateIc10Ic50Ratio);
-//             this.adaptationRates.push([adaptRate, this.timeCurrent]);
-//
-//             let ic50 = this.ic50s[this.ic50s.length - 1][0] * Math.exp(adaptRate / 60);
-//             this.ic50s.push([ic50, this.timeCurrent]);
-//         }
-//
-//         let newPopulation = this.population.length ? this.population[this.population.length - 1][0] * Math.exp(effectiveGrowthRate / 60) : this.initialPopulation;
-//         this.population.push([newPopulation, this.timeCurrent]);
-//         this.updater.update(this);
-//     }
-
-// The function above are used to simulate the experiment minute by minute.
-// We propose creating a game where the user can simulate the experiment and see the results in real time.
-// To make the game more playful, we can add graphics and animations to the simulation.
-// The following parameters used above can be used in the graphics and animations:
-//     - effectiveDoses, ic50s: effective_dose/IC50 tells us how stressful the environment is for the bacteria.
-//     a graphical element can be used to represent the stress level, such as a thermometer or a color scale or a stress-o-meter.
-//     - effectiveGrowthRates: effective_growth_rate tells us how fast the bacteria are growing. A graphical element can be used to represent the growth rate, such as a speedometer or a growth-o-meter,
-//     or the speed of an animation of dividing bacteria.
-//     - adaptationRates: adaptation_rate tells us how fast the bacteria are adapting to the stress.
-//     A graphical element can be used to represent the adaptation rate, such as the speed of an animated bacteria lifting weights.
-
-</script>
+// this.population - array of [population, time] (population animated as number of bacteria -
+// for example arranged in corners of a 16x16 grid - as they double they move to the next corner and become more opaque - from 2x2 to 4x4 to 8x8 to 16x16)
+  </script>
 
 <template>
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Bacterium Body -->
+  <ellipse cx="100" cy="100" rx="40" ry="20" fill="green" stroke="black" stroke-width="2"/>
+
+  <!-- Eyes -->
+  <circle cx="90" cy="95" r="5" fill="white"/>
+  <circle cx="110" cy="95" r="5" fill="white"/>
+  <circle cx="90" cy="95" r="2" fill="black"/>
+  <circle cx="110" cy="95" r="2" fill="black"/>
+
+  <!-- Mouth -->
+  <path d="M85 110 Q100 120 115 110" stroke="black" stroke-width="2" fill="none"/>
+
+  <!-- Arms -->
+  <path id="left-arm" d="M60,100 Q45,85 30,70" stroke="black" stroke-width="4" fill="none"/>
+  <path id="right-arm" d="M140,100 Q155,85 170,70" stroke="black" stroke-width="4" fill="none"/>
+
+  <!-- Weights -->
+  <rect id="left-barbell" x="20" y="60" width="20" height="20" fill="gray" stroke="black" stroke-width="2"/>
+  <rect id="right-barbell" x="160" y="60" width="20" height="20" fill="gray" stroke="black" stroke-width="2"/>
+  <line id="bar" x1="30" y1="70" x2="170" y2="70" stroke="black" stroke-width="4"/>
+</svg>
 
 </template>
 
 <style scoped>
+@keyframes lift {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
 
+#left-barbell, #right-barbell, #bar {
+  animation: lift 1s infinite;
+}
+
+@keyframes leftArmLift {
+  0%, 100% {
+    d: path("M60,100 Q45,85 30,70");
+  }
+  50% {
+    d: path("M60,100 Q45,75 30,60");
+  }
+}
+
+@keyframes rightArmLift {
+  0%, 100% {
+    d: path("M140,100 Q155,85 170,70");
+  }
+  50% {
+    d: path("M140,100 Q155,75 170,60");
+  }
+}
+
+#left-arm {
+  animation: leftArmLift 1s infinite;
+}
+
+#right-arm {
+  animation: rightArmLift 1s infinite;
+}
 </style>

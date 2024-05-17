@@ -7,10 +7,11 @@
     "build": "vue-cli-service build",
     "lint": "vue-cli-service lint",
     "predeploy": "npm run build",
-    "deploy:github": "cross-env DEPLOY_TARGET=github gh-pages -d dist"
+    "deploy:github": "set DEPLOY_TARGET=github && npm run build && gh-pages -d dist"
   },
   "dependencies": {
     "core-js": "^3.8.3",
+    "dotenv": "^16.4.5",
     "plotly": "^1.0.6",
     "plotly.js-dist-min": "^2.32.0",
     "vue": "^3.2.13"
