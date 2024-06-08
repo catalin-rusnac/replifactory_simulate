@@ -1,76 +1,107 @@
 <template>
-    <h1>Evolution Experiment Simulation</h1>
-    <div class="settings-container">
-      <!-- Updater Settings -->
-      <div class="settings-block">
-        <h2>Culture Control Parameters</h2>
-        <table class="settings-table">
-          <tr v-for="(value, key) in updaterSettings" :key="'updater-' + key">
-            <td>{{ key }}</td>
-            <td><input v-model="updaterSettings[key]" type="number"></td>
-          </tr>
-        </table>
-      </div>
-      <!-- Model Settings -->
-      <div class="settings-block">
-        <h2>Culture Growth Model Parameters</h2>
-        <table class="settings-table">
-          <tr v-for="key in modelSettingsKeys" :key="'model-' + key">
-            <td>{{ key }}</td>
-            <td><input v-model="modelSettings[key]" type="number"></td>
-          </tr>
-        </table>
-      </div>
+  <h1>Evolution Experiment Simulation</h1>
+  <div id="plotDiv"></div>
+  <div class="settings-container">
+    <!-- Updater Settings -->
+    <div class="settings-block">
+      <h2>Culture Control Parameters</h2>
+      <table class="settings-table">
+        <tr v-for="(value, key) in updaterSettings" :key="'updater-' + key">
+          <td>{{ key }}</td>
+          <td>
+            <input
+              v-if="updaterSettings_bounds[key]"
+              v-model.number="updaterSettings[key]"
+              type="range"
+              :min="updaterSettings_bounds[key][0]"
+              :max="updaterSettings_bounds[key][1]"
+              :step="updaterSettings_bounds[key][2] || 0.1"
+            >
+            <input
+              v-else
+              v-model.number="updaterSettings[key]"
+              type="number"
+            >
+            {{ updaterSettings[key] }}
+          </td>
+        </tr>
+      </table>
+    </div>
+    <!-- Model Settings -->
+    <div class="settings-block">
+      <h2>Culture Growth Model Parameters</h2>
+      <table class="settings-table">
+        <tr v-for="key in modelSettingsKeys" :key="'model-' + key">
+          <td>{{ key }}</td>
+          <td><input v-model.number="modelSettings[key]" type="number"></td>
+        </tr>
+      </table>
+    </div>
 
     <div class="outcome">
       <h2>Outcome</h2>
-<!--      highlight numbers in bold-->
+      <!-- Highlight numbers in bold -->
       <p>Volume Used: {{ volumeUsed }} ml</p>
       <p>IC50 Fold Change: <b>{{ ic50FoldChange }}</b></p>
       <p>Volume per IC50 Doubling: <b>{{ volumePerIC50Doubling }}</b> ml</p>
       <p>Time per IC50 Doubling: <b>{{ timePerIC50Doubling }}</b> hours</p>
 
-      <text>Duration [h]: </text>
-    <input v-model="simulationHours" type="number">
-    <br>
-          <button class="run-button" @click="runSimulation">Recalculate</button>
-
+      <label>Duration [h]: </label>
+      <input v-model.number="simulationHours" type="number">
+      <br>
+      <button class="run-button" @click="runSimulation">Recalculate</button>
     </div>
-
-          </div>
-    <div id="plotDiv"></div>
-    <div id="adaptation-rate-plot"></div>
-    <div id="mu-plot"></div>
+  </div>
+  <div id="adaptation-rate-plot"></div>
+  <div id="mu-plot"></div>
 </template>
-
-
 
 <script>
 import BacteriaGrowthModel from '../models/BacteriaGrowthModel';
 import MorbidostatUpdater from '../models/MorbidostatUpdater';
 import ParameterPlotting from '@/models/ParameterPlotting';
+
 export default {
-  name: 'SimulationComponent',
   data() {
     return {
       updaterSettings: {
+        doseInitialization: 1,
         odDilutionThreshold: 0.3,
         dilutionFactor: 1.6,
-        dilutionNumberInitialDose: 1,
-        doseInitialAdded: 10,
+        dilutionNumberFirstDrugAddition: 2,
+        doseFirstDrugAddition: 3,
         doseIncreaseFactor: 2,
+        doseIncreaseAmount: 0,
+        thresholdOdMinIncreaseStress: 0.1,
         thresholdGrowthRateIncreaseStress: 0.15,
         thresholdGrowthRateDecreaseStress: -0.1,
-        delayDilutionMaxHours: 3,
-        delayStressIncreaseMinGenerations: 3,
+        delayDilutionMaxHours: 4,
+        delayStressIncreaseMinGenerations: 2,
         volumeVial: 12,
         pump1StockDrugConcentration: 0,
-        pump2StockDrugConcentration: 300
+        pump2StockDrugConcentration: 100
+      },
+      updaterSettings_bounds: {
+        doseInitialization: [0, 10, 0.1],
+        odDilutionThreshold: [0, 1, 0.01],
+        dilutionFactor: [1, 3, 0.1],
+        dilutionNumberFirstDrugAddition: [0, 10, 1],
+        doseFirstDrugAddition: [0, 10, 0.1],
+        doseIncreaseFactor: [1, 5, 0.1],
+        doseIncreaseAmount: [0, 10, 0.1],
+        thresholdOdMinIncreaseStress: [0, 1, 0.01],
+        thresholdGrowthRateIncreaseStress: [0, 1, 0.01],
+        thresholdGrowthRateDecreaseStress: [-1, 0, 0.01],
+        delayDilutionMaxHours: [1, 24, 1],
+        delayStressIncreaseMinGenerations: [1, 10, 1],
+        volumeVial: [1, 20, 0.1],
+        pump1StockDrugConcentration: [0, 100, 1],
+        pump2StockDrugConcentration: [0, 500, 1]
       },
       modelSettings: {
-        initialPopulation: 0.01,
+        initialPopulation: 0.05,
         doublingTimeMins: 20,
-        carryingCapacity: 2,
+        carryingCapacity: 0.9,
         muMin: -0.1,
         ic50Initial: 5,
         ic10Ic50Ratio: 0.5,
@@ -78,12 +109,8 @@ export default {
         timeLagDrugEffectMins: 30,
         adaptationRateMax: 0.08,
         adaptationRateIc10Ic50Ratio: 0.8,
-        generationCurrent: 0,
-        drugConcentration: 0,
-        effectiveDose: 0,
         timeCurrent: new Date()
       },
-      settingsTsv: '', // To store the TSV data
       volumeUsed: 0,
       totalTime: 0,
       ic50FoldChange: 0,
@@ -100,20 +127,20 @@ export default {
         'doseEffectiveSlopeWidthMins',
         'timeLagDrugEffectMins',
         'adaptationRateMax',
-        'adaptationRateIc10Ic50Ratio',]
-
+        'adaptationRateIc10Ic50Ratio'
+      ]
     };
   },
   watch: {
-      updaterSettings: {
-        handler: 'runSimulation',
-        deep: true // This ensures that changes in object properties are detected
-      },
-      modelSettings: {
-        handler: 'runSimulation',
-        deep: true
-      }
+    updaterSettings: {
+      handler: 'runSimulation',
+      deep: true // This ensures that changes in object properties are detected
     },
+    modelSettings: {
+      handler: 'runSimulation',
+      deep: true
+    }
+  },
   mounted() {
     this.runSimulation();
   },
@@ -125,13 +152,9 @@ export default {
         updater: updater
       });
       model.plotSimulation(this.simulationHours);
-      // [volumeUsed, totalTime, ic50FoldChange] = model.getSimulationEfficiency();
       let [volumeUsed, totalTime, ic50FoldChange] = model.getSimulationEfficiency();
       const volumePerIC50Doubling = volumeUsed / Math.log2(ic50FoldChange);
       const timePerIC50Doubling = totalTime / Math.log2(ic50FoldChange);
-      // console.log(`Volume Used: ${volumeUsed.toFixed(1)} ml, Total Time: ${totalTime.toFixed(1)} hours, IC50 fold change: ${ic50FoldChange.toFixed(2)}`);
-      // console.log(`Volume per IC50 doubling: ${volumePerIC50Doubling.toFixed(1)} ml`);
-      // console.log(`Time per IC50 doubling: ${timePerIC50Doubling.toFixed(1)} hours`);
       this.volumeUsed = volumeUsed.toFixed(1);
       this.totalTime = totalTime.toFixed(1);
       this.ic50FoldChange = ic50FoldChange.toFixed(2);
@@ -139,19 +162,10 @@ export default {
       this.timePerIC50Doubling = timePerIC50Doubling.toFixed(1);
 
       const parameterPlotting = new ParameterPlotting(model);
+
       parameterPlotting.plot_mu();
       parameterPlotting.plot_adaptation_rate();
-
-      this.generateTsv();
-
-    },
-    generateTsv() {
-      const allSettings = { ...this.updaterSettings, ...this.modelSettings };
-      this.settingsTsv = Object.entries(allSettings)
-                               .map(([key, value]) => `${key}\t${value}`)
-                               .join('\n');
-    },
-
+    }
   }
 };
 </script>
@@ -191,12 +205,16 @@ h1, h2 {
   border-top: 1px solid #BDC3C7;
 }
 
-input {
+input[type="number"] {
   width: 80px;
   padding: 8px;
   border: 1px solid #BDC3C7;
   border-radius: 4px;
   box-sizing: border-box; /* Added to include padding in the width */
+}
+
+input[type="range"] {
+  width: 100%;
 }
 
 .outcome {

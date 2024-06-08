@@ -1,110 +1,187 @@
 class MorbidostatUpdater {
     constructor(options = {}) {
         const defaults = {
+            doseInitialization: 1,
             odDilutionThreshold: 0.3,
             dilutionFactor: 1.6,
-            dilutionNumberInitialDose: 1,
-            doseInitialAdded: 10,
+            dilutionNumberFirstDrugAddition: 2,
+            doseFirstDrugAddition: 3,
             doseIncreaseFactor: 2,
+            doseIncreaseAmount: 0,
+            thresholdOdMinIncreaseStress: 0.1,
             thresholdGrowthRateIncreaseStress: 0.15,
             thresholdGrowthRateDecreaseStress: -0.1,
-            delayDilutionMaxHours: 3,
-            delayStressIncreaseMinGenerations: 3,
+            delayDilutionMaxHours: 4,
+            delayStressIncreaseMinGenerations: 2,
             volumeVial: 12,
             pump1StockDrugConcentration: 0,
-            pump2StockDrugConcentration: 300
+            pump2StockDrugConcentration: 100
         };
 
         Object.assign(this, defaults, options);
     }
 
-    rescueConditionIsMet(model) {
+    rescueIfNecessary(model) {
         if (model.doses.length < 1) {
-            return false;
+            return; // First dilution has not occurred yet, no need to rescue
         }
 
         const lastDilutionTime = model.doses[model.doses.length - 1][1];
         const hoursSinceLastDilution = (model.timeCurrent - lastDilutionTime) / 3600000;
         if (hoursSinceLastDilution < this.delayDilutionMaxHours) {
-            return false;
+            return; // Last dilution was too recent
         }
 
         if (model.growthRate > this.thresholdGrowthRateDecreaseStress) {
-            return false;
+            return; // Growth rate is too high, no need to rescue
         }
 
-        console.log(model.growthRate, this.thresholdGrowthRateDecreaseStress, "Rescue condition met");
-        return true;
+        console.log("Rescue dilution"); // All conditions for rescue are met
+        model.diluteCulture(0, this.dilutionFactor);
     }
+
+    calculateIncreasedDose(currentDose) {
+        const newDose = currentDose * this.doseIncreaseFactor + this.doseIncreaseAmount;
+        return Math.round(newDose * 1000) / 1000; // Keep three decimals
+    }
+
     diluteToWashIfNeeded(model) {
-        // Ensure there's at least one population data point before proceeding
+        const minimumPumpedVolume = 0.1;
+        const washingDilutionFactor = 1.2;
+        const pump2Volume = minimumPumpedVolume;
+        const pump1Volume = this.volumeVial * washingDilutionFactor - pump2Volume;
+        const currentDose = model.doses.length > 0 ? model.doses[model.doses.length - 1][0] : 0;
+        const totalVolume = this.volumeVial + pump1Volume + pump2Volume;
+        const targetDose = (this.volumeVial * currentDose + pump1Volume * this.pump1StockDrugConcentration +
+            pump2Volume * this.pump2StockDrugConcentration) / totalVolume;
+
         if (!model.population || model.population.length === 0) {
             return;
         }
 
-        // Start with a base target dose based on pump2 stock concentration
-        let targetDose = this.pump2StockDrugConcentration * 0.02;
-
-        // Determine the last pump time
-        let lastPumpTime = model.population[0][1]; // Default to the first population entry if no doses
-        if (model.doses.length > 0) {
-            lastPumpTime = model.doses[model.doses.length - 1][1];
-            targetDose = Math.max(targetDose, model.doses[model.doses.length - 1][0]);
-        }
-
-        // Calculate the time difference in hours between the current time and the last pump time
-        const timeDifference = (model.timeCurrent.getTime() - lastPumpTime.getTime()) / 3600000; // Convert ms to hours
-
-        // Check if the time difference exceeds the maximum allowed delay for dilution
-        if (timeDifference > this.delayDilutionMaxHours) {
-            console.log("Washing dilution", targetDose, "time", model.timeCurrent);
-            model.diluteCulture(targetDose, 1.2);
-        }
-    }
-
-
-    update(model) {
-        if (model.population.length === 0) {
+        if (this.delayDilutionMaxHours < 0) { // Time triggered dilution disabled
             return;
         }
 
-        if (model.population[model.population.length - 1][0] >= this.odDilutionThreshold) {
-            let targetDose = 0;
-            if (model.doses.length === this.dilutionNumberInitialDose) {
-                targetDose = this.doseInitialAdded;
-            } else if (model.doses.length > this.dilutionNumberInitialDose) {
-                targetDose = model.doses[model.doses.length - 1][0];
-                // const lastDoseChangeTime = model.doses.reduceRight((acc, dose) => (dose[0] !== model.doses[model.doses.length - 1][0] ? dose[1] : acc), 0);
+        const lastPumpTime = model.doses.length > 0 ? model.doses[model.doses.length - 1][1] : model.firstOdTimestamp;
+        const timeDifference = (model.timeCurrent - lastPumpTime) / 3600000;
 
-                const lastDoseChangeTime = model.doses.reduceRight((acc, dose, index, array) => {
-                    if (acc !== null) {
-                        return acc;  // If already found, keep returning the found value
-                    }
-                    // Check if the current dose is different from the last dose and not already found
-                    if (index > 0 && dose[0] !== array[index - 1][0]) {
-                        return dose[1];  // Return the timestamp of the dose change
-                    }
-                    return null;  // Continue if no change is found yet
-                }, null);
+        if (timeDifference > this.delayDilutionMaxHours) {
+            console.log("Washing dilution, target dose", targetDose, "time_current", model.timeCurrent);
+            model.diluteCulture(targetDose, washingDilutionFactor);
+        }
+    }
 
+    isTimeToIncreaseDose(model) {
+        let timeToIncreaseDose = true;
 
-                console.log("Last dose change time", lastDoseChangeTime);
-                const generationAtLastDoseChange = model.generations.find(gen => gen[1] >= lastDoseChangeTime)[0];
-                const generationsSinceLastDoseChange = model.generations[model.generations.length - 1][0] - generationAtLastDoseChange;
-                const generationsPerDilution = Math.log(this.dilutionFactor) / Math.log(2);
-                if (model.growthRate > this.thresholdGrowthRateIncreaseStress &&
-                    generationsSinceLastDoseChange + generationsPerDilution > this.delayStressIncreaseMinGenerations) {
-                    targetDose *= this.doseIncreaseFactor;
-                    console.log("Stress increase from", model.doses[model.doses.length - 1][0], "to", targetDose, "due to growth rate increase");
-                    targetDose = Math.round(targetDose * 1000) / 1000;  // Keep three decimals
+        if ([this.thresholdGrowthRateIncreaseStress, this.delayStressIncreaseMinGenerations, this.doseIncreaseFactor, this.dilutionNumberFirstDrugAddition].includes(-1)) {
+            timeToIncreaseDose = false; // Stress increase disabled
+        }
+
+        if (model.population[model.population.length - 1][0] < this.thresholdOdMinIncreaseStress) {
+            timeToIncreaseDose = false; // OD too low
+        }
+
+        if (model.growthRate < this.thresholdGrowthRateIncreaseStress) {
+            timeToIncreaseDose = false; // Growth rate too low
+        }
+
+        if (this.delayStressIncreaseMinGenerations !== -1 && model.doses.length > 0) {
+            const lastDoseChangeTime = model.doses.reduceRight((acc, dose, index, array) => {
+                if (acc !== null) {
+                    return acc;  // If already found, keep returning the found value
+                }
+                if (index > 0 && dose[0] !== array[index - 1][0]) {
+                    return dose[1];  // Return the timestamp of the dose change
+                }
+                return null;  // Continue if no change is found yet
+            }, null);
+
+            const generationAtLastDoseChange = model.generations.find(gen => gen[1] >= lastDoseChangeTime)[0];
+            const generationsSinceLastDoseChange = model.generations[model.generations.length - 1][0] - generationAtLastDoseChange;
+
+            if (generationsSinceLastDoseChange <= this.delayStressIncreaseMinGenerations) {
+                timeToIncreaseDose = false; // Stress increase too recent
+            }
+        }
+
+        if (model.doses.length < this.dilutionNumberFirstDrugAddition) {
+            timeToIncreaseDose = false; // No stress increase before initial drug addition
+        }
+
+        return timeToIncreaseDose;
+    }
+
+    isTooEarlyForRegularDilution(model) {
+        if (model.population.length === 0) {
+            return true; // No OD measurements yet
+        }
+
+        if (model.doses.length > 0) {
+            const odTimestamp = model.population[model.population.length - 1][1];
+            const dosesTimestamp = model.doses[model.doses.length - 1][1];
+            const minimumDurationMinutes = 1;
+
+            if (odTimestamp < dosesTimestamp + minimumDurationMinutes * 60000) {
+                return true; // No OD measurement since the last dilution
+            }
+        }
+
+        return false;
+    }
+
+    isTimeToDilute(model) {
+        if (this.odDilutionThreshold !== -1 && model.population[model.population.length - 1][0] >= this.odDilutionThreshold) {
+            return true; // OD threshold reached
+        }
+
+        if (this.delayDilutionMaxHours !== -1) {
+            if (model.doses.length > 0) {
+                const timeDifference = (model.timeCurrent - model.doses[model.doses.length - 1][1]) / 3600000;
+                if (timeDifference > this.delayDilutionMaxHours) {
+                    return true; // Time threshold reached
+                }
+            } else {
+                const timeSinceLastDilution = (model.timeCurrent - model.firstOdTimestamp) / 3600000;
+                if (timeSinceLastDilution > this.delayDilutionMaxHours) {
+                    return true; // Time threshold reached
                 }
             }
-            console.log("Dilution to target dose", targetDose,"time", model.timeCurrent);
-            model.diluteCulture(targetDose);
-        } else if (this.rescueConditionIsMet(model)) {
-            console.log("Rescue dilution");
-            model.diluteCulture(0);
         }
+
+        return false;
+    }
+
+    update(model) {
+        // Initialization dose immediately after experiment start
+        if (this.doseInitialization > 0 && model.doses.length === 0) {
+            model.diluteCulture(this.doseInitialization);
+            return;
+        }
+
+        // Check if it is too early for regular dilution
+        if (this.isTooEarlyForRegularDilution(model)) {
+            return;
+        }
+
+        // Regular dilution
+        if (this.isTimeToDilute(model)) {
+            let targetDose;
+            if (this.dilutionNumberFirstDrugAddition < 0) {
+                targetDose = this.pump1StockDrugConcentration;
+            } else if (model.doses.length === this.dilutionNumberFirstDrugAddition - 1) {
+                targetDose = this.doseFirstDrugAddition;
+            } else {
+                targetDose = model.doses.length > 0 ? model.doses[model.doses.length - 1][0] : this.pump1StockDrugConcentration;
+                if (model.doses.length > this.dilutionNumberFirstDrugAddition && this.isTimeToIncreaseDose(model)) {
+                    targetDose = this.calculateIncreasedDose(model.doses[model.doses.length - 1][0]);
+                }
+            }
+            model.diluteCulture(targetDose);
+            return;
+        }
+        this.rescueIfNecessary(model);
         this.diluteToWashIfNeeded(model);
     }
 }

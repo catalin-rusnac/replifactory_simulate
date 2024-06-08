@@ -1,7 +1,6 @@
-// Imports: Assuming you have separate modules for specific functionalities
-import { doseEffective, muEffective, adaptationRate } from './ModelEquations.js';
+import {adaptationRate, doseEffective, muEffective} from './ModelEquations.js';
 import MorbidostatUpdater from './MorbidostatUpdater.js';
-import Plotly from 'plotly.js-dist-min';
+import {plotModelSimulation} from "@/models/PlotModelSimulation";
 
 class BacteriaGrowthModel {
     constructor(options = {}) {
@@ -23,7 +22,6 @@ class BacteriaGrowthModel {
             timeCurrent: new Date(),  // This will handle the current time
             updater: new MorbidostatUpdater()  // Placeholder for an update method class
         };
-
 
         // Merge defaults with user-provided options
         Object.assign(this, this.defaults, options);
@@ -70,7 +68,7 @@ class BacteriaGrowthModel {
                 if (addedDose === 0) continue;
 
                 // Calculate hours since the drug was added
-                let timeSinceAdditionHrs = (timeCurrent - dilutionTimes[i-1]) / 3600000;  // Convert milliseconds to hours
+                let timeSinceAdditionHrs = (timeCurrent - dilutionTimes[i - 1]) / 3600000;  // Convert milliseconds to hours
                 effectiveDose += doseEffective(addedDose, this.timeLagDrugEffectMins / 60, timeSinceAdditionHrs, this.doseEffectiveSlopeWidthMins / 60);
             }
         }
@@ -78,21 +76,19 @@ class BacteriaGrowthModel {
         return effectiveDose;
     }
 
-
-
     simulateExperimentMinute() {
         let effectiveDose = this.calculateEffectiveDose(this.timeCurrent);
         this.effectiveDoses.push([effectiveDose, this.timeCurrent]);
         let effectiveGrowthRate = 0;
         if (this.population.length) {
             effectiveGrowthRate = muEffective(effectiveDose, this.muMin, this.muMax, this.ic10Ic50Ratio,
-                                                  this.ic50s[this.ic50s.length - 1][0], this.population[this.population.length - 1][0], this.carryingCapacity);
+                this.ic50s[this.ic50s.length - 1][0], this.population[this.population.length - 1][0], this.carryingCapacity);
             this.effectiveGrowthRates.push([effectiveGrowthRate, this.timeCurrent]);
         }
 
         if (effectiveDose > 0) {
             let adaptRate = adaptationRate(effectiveDose, this.adaptationRateMax, this.ic50s[this.ic50s.length - 1][0],
-                                           this.ic10Ic50Ratio, this.adaptationRateIc10Ic50Ratio);
+                this.ic10Ic50Ratio, this.adaptationRateIc10Ic50Ratio);
             this.adaptationRates.push([adaptRate, this.timeCurrent]);
 
             let ic50 = this.ic50s[this.ic50s.length - 1][0] * Math.exp(adaptRate / 60);
@@ -142,144 +138,30 @@ class BacteriaGrowthModel {
         this.generations.push([generationNumber, this.timeCurrent]);
     }
 
-
     simulateExperiment(simulationHours = 48) {
         for (let t = 1; t <= simulationHours * 60; t++) {
             this.timeCurrent = new Date(this.timeCurrent.getTime() + 60000);  // Add one minute
             this.simulateExperimentMinute();
         }
     }
-plotSimulation(simulationHours) {
-    this.simulateExperiment(simulationHours);
-    this.getSimulationEfficiency();
+    plotSimulation(simulationHours = 48) {
+        // use method below to plot the simulation
+        plotModelSimulation(this, simulationHours);
+    }
+    getSimulationEfficiency() {
+        const dilutionFactor = this.updater.dilutionFactor;
+        const addedVolume = this.updater.volumeVial * (dilutionFactor - 1);
+        const volumeUsed = this.doses.length * addedVolume;
+        const ic50FoldChange = this.ic50s[this.ic50s.length - 1][0] / this.ic50s[0][0];
+        const totalTime = (this.population[this.population.length - 1][1] - this.population[0][1]) / 3600000;
+        // const volumePerIC50Doubling = volumeUsed / Math.log2(ic50FoldChange);
+        // const timePerIC50Doubling = totalTime / Math.log2(ic50FoldChange);
+        // console.log(`Volume Used: ${volumeUsed.toFixed(1)} ml, Total Time: ${totalTime.toFixed(1)} hours, IC50 fold change: ${ic50FoldChange.toFixed(2)}`);
+        // console.log(`Volume per IC50 doubling: ${volumePerIC50Doubling.toFixed(1)} ml`);
+        // console.log(`Time per IC50 doubling: ${timePerIC50Doubling.toFixed(1)} hours`);
+        return [volumeUsed, totalTime, ic50FoldChange];
+    }
 
-    // Prepare the data for plotting
-    const times = this.population.map(item => item[1]);
-    const ods = this.population.map(item => item[0]);
-    const growthRates = this.effectiveGrowthRates.map(item => ({ x: item[1], y: item[0] }));
-    const ic50s = this.ic50s.map(item => ({ x: item[1], y: item[0] }));
-    const doses = this.doses.map(item => ({ x: item[1], y: item[0] }));
-    const adaptationRates = this.adaptationRates.map(item => ({ x: item[1], y: item[0] }));
-    const generations = this.generations.map(item => ({ x: item[1], y: item[0] }));
-
-    // Create traces
-    const tracePopulation = {
-        x: times,
-        y: ods,
-        mode: 'markers',
-        name: 'Bacteria Population',
-        marker: { color: 'black', dash: 'dot', width: 1 }
-    };
-    const traceGrowthRate = {
-        x: growthRates.map(gr => gr.x),
-        y: growthRates.map(gr => gr.y),
-        mode: 'lines+markers',
-        name: 'Effective Growth Rate',
-        yaxis: 'y2',
-        line: { color: 'blue' }
-    };
-    const traceIC50 = {
-        x: ic50s.map(ic => ic.x),
-        y: ic50s.map(ic => ic.y),
-        mode: 'lines',
-        name: 'IC50',
-        yaxis: 'y4',
-        // small transparent line to show the IC50 value, no dots
-        line: { color: 'green', width: 1, dash: 'dot' }
-    };
-    const traceDoses = {
-        x: doses.map(d => d.x),
-        y: doses.map(d => d.y),
-        mode: 'lines+markers',
-        name: 'Dose',
-        yaxis: 'y4',
-        line: {
-            color: 'green',
-            shape: 'hv', // Sets the line to be horizontal then vertical
-            width: 2
-        }
-    };
-        // trace effective dose
-    const traceEffectiveDoses = {
-        x: this.effectiveDoses.map(ed => ed[1]),
-        y: this.effectiveDoses.map(ed => ed[0]),
-        mode: 'lines',
-        name: 'Effective Dose',
-        yaxis: 'y4',
-        line: { color: 'green', width: 1 }
-    };
-
-    const traceAdaptationRates = {
-        x: adaptationRates.map(ar => ar.x),
-        y: adaptationRates.map(ar => ar.y),
-        mode: 'lines',
-        name: 'Adaptation Rate',
-        yaxis: 'y5',
-        line: { color: 'violet' }
-    };
-    const traceGenerations = {
-        x: generations.map(g => g.x),
-        y: generations.map(g => g.y),
-        mode: 'lines+markers',
-        name: 'Generations',
-        yaxis: 'y6',
-        line: { color: 'red' }
-    };
-
-    // Setup layout
-    const layout = {
-        title: '',
-        xaxis: { title: 'Time' },
-        yaxis: { title: 'Optical Density' },
-        yaxis2: {
-            title: 'Effective Growth Rate',
-            overlaying: 'y',
-            side: 'right'
-        },
-        // yaxis3: {
-        //     title: 'IC50',
-        //     overlaying: 'y',
-        //     side: 'right',
-        //     position: 0.95
-        // },
-        yaxis4: {
-            title: 'Dose',
-            overlaying: 'y',
-            side: 'right',
-            position: 0.90
-        },
-        yaxis5: {
-            title: 'Adaptation Rate',
-            overlaying: 'y',
-            side: 'right',
-            position: 0.85
-        },
-        yaxis6: {
-            title: 'Generations',
-            overlaying: 'y',
-            side: 'right',
-            position: 0.80
-        }
-    };
-
-    // Plotting
-    const data = [tracePopulation, traceGrowthRate, traceIC50, traceDoses,traceEffectiveDoses, traceAdaptationRates, traceGenerations];
-    Plotly.newPlot('plotDiv', data, layout);
-}
-
-getSimulationEfficiency() {
-    const dilutionFactor = this.updater.dilutionFactor;
-    const addedVolume = this.updater.volumeVial * (dilutionFactor - 1);
-    const volumeUsed = this.doses.length * addedVolume;
-    const ic50FoldChange = this.ic50s[this.ic50s.length - 1][0] / this.ic50s[0][0];
-    const totalTime = (this.population[this.population.length - 1][1] - this.population[0][1]) / 3600000;
-    // const volumePerIC50Doubling = volumeUsed / Math.log2(ic50FoldChange);
-    // const timePerIC50Doubling = totalTime / Math.log2(ic50FoldChange);
-    // console.log(`Volume Used: ${volumeUsed.toFixed(1)} ml, Total Time: ${totalTime.toFixed(1)} hours, IC50 fold change: ${ic50FoldChange.toFixed(2)}`);
-    // console.log(`Volume per IC50 doubling: ${volumePerIC50Doubling.toFixed(1)} ml`);
-    // console.log(`Time per IC50 doubling: ${timePerIC50Doubling.toFixed(1)} hours`);
-    return [volumeUsed, totalTime, ic50FoldChange];
-}
 }
 
 export default BacteriaGrowthModel;

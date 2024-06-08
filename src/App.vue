@@ -1,21 +1,26 @@
 <template>
   <div>
-  <GameComponent />
+  <TestAnimation/>
+    <AnimatedBacteria />
+
+
   </div>
   <div>
-  <SimulationComponent msg="Welcome to Your Vue.js App"/>
+  <SimulationControls msg="Welcome to Your Vue.js App"/>
   </div>
 
 </template>
 
 <script>
-import SimulationComponent from './components/SimulationComponent.vue'
-import GameComponent from './components/GameComponent.vue'
+import SimulationControls from './components/SimulationControls.vue'
+import AnimatedBacteria from './components/AnimatedBacteria.vue'
+import TestAnimation from './components/TestAnimation.vue'
 export default {
   name: 'App',
   components: {
-    SimulationComponent,
-    GameComponent
+    SimulationControls,
+    AnimatedBacteria,
+    TestAnimation
   }
 }
 </script>

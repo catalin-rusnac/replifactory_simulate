@@ -10,8 +10,11 @@
     "deploy:github": "set DEPLOY_TARGET=github && npm run build && gh-pages -d dist"
   },
   "dependencies": {
+    "@coreui/vue": "^5.1.0",
     "core-js": "^3.8.3",
     "dotenv": "^16.4.5",
+    "fs": "^0.0.1-security",
+    "lottie-web": "^5.12.2",
     "plotly": "^1.0.6",
     "plotly.js-dist-min": "^2.32.0",
     "vue": "^3.2.13"
