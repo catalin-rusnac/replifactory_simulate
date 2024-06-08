@@ -10,7 +10,7 @@
       <!-- The specific element will be rendered here -->
     </div>
 
-    <!-- Sliders for size and speed -->
+    <!-- Sliders for size, speed, and specific element selection -->
     <div class="controls">
       <label for="speed">Speed: {{ animationSpeed }}</label>
       <input
@@ -34,6 +34,17 @@
         v-model="animationSize"
         @input="onSizeChange"
       />
+      <label for="element">Element: {{ specificElementIndex }}</label>
+      <input
+        type="range"
+        id="element"
+        class="slider"
+        :min="0"
+        :max="maxElements - 1"
+        :step="1"
+        v-model="specificElementIndex"
+        @input="onElementChange"
+      />
     </div>
   </div>
 </template>
@@ -48,11 +59,17 @@ export default {
       animationSpeed: 1, // Default speed
       animationSize: 800, // Default size
       animationPath: '/pop.json', // Path to the animation file
+      specificElementIndex: 1, // Default element index
+      maxElements: 1, // Maximum number of elements in the animation
+      animationData: null, // Animation data
     };
   },
   watch: {
     animationSpeed(newSpeed) {
       this.setAnimationSpeed(newSpeed);
+    },
+    specificElementIndex() {
+      this.renderSpecificElement();
     }
   },
   mounted() {
@@ -62,6 +79,10 @@ export default {
     async loadAnimation() {
       const response = await fetch(this.animationPath);
       const animationData = await response.json();
+      this.animationData = animationData;
+
+      // Store the total number of elements
+      this.maxElements = this.animationData.layers.length;
 
       // Render the full animation
       this.animation = lottie.loadAnimation({
@@ -73,35 +94,44 @@ export default {
       });
       this.animation.setSpeed(this.animationSpeed);
 
-      // Extract and render the specific element
-      this.renderSpecificElement(animationData);
+      // Render the specific element
+      this.renderSpecificElement();
     },
-    renderSpecificElement(animationData) {
-      // Extract the second g clip path element
-      console.log(animationData.layers)
-      const layers = animationData.layers.filter((layer, index) => {
-        // Use index 1 for the second element (index starts from 0)
-        return index === 87; // TODO: add slider to select the specific element, watch for changes and update the specific element
+    renderSpecificElement() {
+      // Extract the specific element
+      const layers = this.animationData.layers.filter((layer, index) => {
+        return index === this.specificElementIndex;
       });
 
       if (layers.length > 0) {
         const specificElementData = {
-          ...animationData,
+          ...this.animationData,
           layers // Use only the specific layers
         };
-
-        lottie.loadAnimation({
+        if (this.singleElementAnimation) {
+          this.singleElementAnimation.destroy();
+        }
+        this.singleElementAnimation = lottie.loadAnimation({
           container: this.$refs.singleElementContainer,
           renderer: 'svg',
           loop: true,
           autoplay: true,
           animationData: specificElementData
-        }).setSpeed(this.animationSpeed);
+        });
+
+        // TODO: change the size of the container to the size of the specific element by using the layers' dimensions and position
+
+
+
+        this.singleElementAnimation.setSpeed(this.animationSpeed);
       }
     },
     setAnimationSpeed(speed) {
       if (this.animation) {
         this.animation.setSpeed(speed);
+      }
+      if (this.singleElementAnimation) {
+        this.singleElementAnimation.setSpeed(speed);
       }
     },
     onSpeedChange(event) {
@@ -109,10 +139,14 @@ export default {
     },
     onSizeChange(event) {
       const newSize = parseInt(event.target.value, 10);
+      this.animationSize = newSize;
       this.$refs.animationContainer.style.width = `${newSize}px`;
       this.$refs.animationContainer.style.height = `${newSize}px`;
       this.$refs.singleElementContainer.style.width = `${newSize}px`;
       this.$refs.singleElementContainer.style.height = `${newSize}px`;
+    },
+    onElementChange(event) {
+      this.specificElementIndex = parseInt(event.target.value, 10);
     }
   }
 };
