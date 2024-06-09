@@ -1,5 +1,16 @@
 <template>
   <h1>Evolution Experiment Simulation</h1>
+<!--  20px space below slider container -->
+  <div class="slider-container" :style="{ marginBottom: '10px' }">
+    <button @click="togglePlay" :style="{ backgroundColor: isPlaying ? '#E74C3C' : '#3498DB' }">{{ isPlaying ? 'Pause' : 'Play' }}</button>
+    <input
+      type="range"
+      id="timepoint-slider"
+      :min="0"
+      :max="maxTimepoints"
+      v-model="selectedTimepoint"
+    />
+  </div>
   <div id="plotDiv"></div>
   <div class="settings-container">
     <!-- Updater Settings -->
@@ -16,17 +27,18 @@
               :min="updaterSettings_bounds[key][0]"
               :max="updaterSettings_bounds[key][1]"
               :step="updaterSettings_bounds[key][2] || 0.1"
-            >
+            />
             <input
               v-else
               v-model.number="updaterSettings[key]"
               type="number"
-            >
+            />
             {{ updaterSettings[key] }}
           </td>
         </tr>
       </table>
     </div>
+
     <!-- Model Settings -->
     <div class="settings-block">
       <h2>Culture Growth Model Parameters</h2>
@@ -52,6 +64,7 @@
       <button class="run-button" @click="runSimulation">Recalculate</button>
     </div>
   </div>
+
   <div id="adaptation-rate-plot"></div>
   <div id="mu-plot"></div>
 </template>
@@ -60,6 +73,7 @@
 import BacteriaGrowthModel from '../models/BacteriaGrowthModel';
 import MorbidostatUpdater from '../models/MorbidostatUpdater';
 import ParameterPlotting from '@/models/ParameterPlotting';
+import Plotly from 'plotly.js-dist-min';
 
 export default {
   data() {
@@ -128,10 +142,15 @@ export default {
         'timeLagDrugEffectMins',
         'adaptationRateMax',
         'adaptationRateIc10Ic50Ratio'
-      ]
+      ],
+      selectedTimepoint: 0,
+      maxTimepoints: 0,
+      isPlaying: false,
+      playInterval: null
     };
   },
   watch: {
+    selectedTimepoint: 'getParametersAtTimepoint',
     updaterSettings: {
       handler: 'runSimulation',
       deep: true // This ensures that changes in object properties are detected
@@ -151,7 +170,8 @@ export default {
         ...this.modelSettings,
         updater: updater
       });
-      this.model.plotSimulation(this.simulationHours);
+      this.model.simulateExperiment(this.simulationHours)
+      this.plotModelSimulation(this.model, this.simulationHours);
       let [volumeUsed, totalTime, ic50FoldChange] = this.model.getSimulationEfficiency();
       const volumePerIC50Doubling = volumeUsed / Math.log2(ic50FoldChange);
       const timePerIC50Doubling = totalTime / Math.log2(ic50FoldChange);
@@ -160,24 +180,129 @@ export default {
       this.ic50FoldChange = ic50FoldChange.toFixed(2);
       this.volumePerIC50Doubling = volumePerIC50Doubling.toFixed(1);
       this.timePerIC50Doubling = timePerIC50Doubling.toFixed(1);
-
       const parameterPlotting = new ParameterPlotting(this.model);
-
       parameterPlotting.plot_mu();
       parameterPlotting.plot_adaptation_rate();
+      this.maxTimepoints = Math.min(this.model.population.length, this.model.ic50s.length, this.model.effectiveDoses.length, this.model.effectiveGrowthRates.length, this.model.adaptationRates.length) - 1;
     },
-    parametersAtTimepoint(timepoint_index) {
-          return {
-              population: this.model.population[timepoint_index][0],
-              generation: this.model.generations[timepoint_index][0],
-              drugConcentration: this.model.doses[timepoint_index][0],
-              ic50: this.model.ic50s[timepoint_index][0],
-              effectiveGrowthRate: this.model.effectiveGrowthRates[timepoint_index][0],
-              adaptationRate: this.model.adaptationRates[timepoint_index][0],
-              time: this.model.population[timepoint_index][1]
-          };
+    getParametersAtTimepoint() {
+      console.log('Selected timepoint:', this.selectedTimepoint);
+      if (this.selectedTimepoint > this.maxTimepoints) {
+        console.log('Selected timepoint is out of bounds:', this.selectedTimepoint);
+        this.selectedTimepoint = this.maxTimepoints;
+
       }
+      const timepoint_index = this.selectedTimepoint;
+
+      const dict = {
+        population: this.model.population[timepoint_index][0],
+        currentDose: this.model.effectiveDoses[timepoint_index][0],
+        IC50: this.model.ic50s[timepoint_index][0],
+        growthRate: this.model.effectiveGrowthRates[timepoint_index][0],
+        adaptationRate: this.model.adaptationRates[timepoint_index][0],
+        IC50_initial: this.model.ic50s[0][0],
+      }
+      this.$emit('update-params', dict);
+      return dict;
+    },
+    plotModelSimulation(model) {
+    const times = model.population.map(item => item[1]);
+    const ods = model.population.map(item => item[0]);
+    const growthRates = model.effectiveGrowthRates.map(item => ({x: item[1], y: item[0]}));
+    const ic50s = model.ic50s.map(item => ({x: item[1], y: item[0]}));
+    const doses = model.doses.map(item => ({x: item[1], y: item[0]}));
+    const adaptationRates = model.adaptationRates.map(item => ({x: item[1], y: item[0]}));
+    const generations = model.generations.map(item => ({x: item[1], y: item[0]}));
+
+    const tracePopulation = {
+        x: times,
+        y: ods,
+        mode: 'markers',
+        name: 'Bacteria Population',
+        marker: {color: 'black', size: 5}
+    };
+    const traceGrowthRate = {
+        x: growthRates.map(gr => gr.x),
+        y: growthRates.map(gr => gr.y),
+        mode: 'lines+markers',
+        name: 'Effective Growth Rate',
+        yaxis: 'y2',
+        line: {color: 'blue'}
+    };
+    const traceIC50 = {
+        x: ic50s.map(ic => ic.x),
+        y: ic50s.map(ic => ic.y),
+        mode: 'lines',
+        name: 'IC50',
+        yaxis: 'y4',
+        line: {color: 'green', width: 1, dash: 'dot'}
+    };
+    const traceDoses = {
+        x: doses.map(d => d.x),
+        y: doses.map(d => d.y),
+        mode: 'lines+markers',
+        name: 'Dose',
+        yaxis: 'y4',
+        line: {color: 'green', shape: 'hv', width: 2}
+    };
+    const traceEffectiveDoses = {
+        x: model.effectiveDoses.map(ed => ed[1]),
+        y: model.effectiveDoses.map(ed => ed[0]),
+        mode: 'lines',
+        name: 'Effective Dose',
+        yaxis: 'y4',
+        line: {color: 'green', width: 1}
+    };
+    const traceAdaptationRates = {
+        x: adaptationRates.map(ar => ar.x),
+        y: adaptationRates.map(ar => ar.y),
+        mode: 'lines',
+        name: 'Adaptation Rate',
+        yaxis: 'y5',
+        line: {color: 'violet'}
+    };
+    const traceGenerations = {
+        x: generations.map(g => g.x),
+        y: generations.map(g => g.y),
+        mode: 'lines+markers',
+        name: 'Generations',
+        yaxis: 'y6',
+        line: {color: 'red'}
+    };
+
+    const layout = {
+        title: '',
+        xaxis: {title: 'Time'},
+        yaxis: {title: 'Optical Density'},
+        yaxis2: {title: 'Effective Growth Rate', overlaying: 'y', side: 'right'},
+        yaxis4: {title: 'Dose', overlaying: 'y', side: 'right', position: 0.90},
+        yaxis5: {title: 'Adaptation Rate', overlaying: 'y', side: 'right', position: 0.85},
+        yaxis6: {title: 'Generations', overlaying: 'y', side: 'right', position: 0.80}
+    };
+
+    const data = [tracePopulation, traceGrowthRate, traceIC50, traceDoses, traceEffectiveDoses, traceAdaptationRates, traceGenerations];
+    Plotly.newPlot('plotDiv', data, layout).then(() => {
+    }).catch(error => {
+        console.error('Error in plotSimulation:', error);
+    });
+    },
+    togglePlay() {
+      if (this.isPlaying) {
+        clearInterval(this.playInterval);
+      } else {
+        this.playInterval = setInterval(() => {
+          this.selectedTimepoint = parseInt(this.selectedTimepoint)
+          if (this.selectedTimepoint < this.maxTimepoints-4) {
+            this.selectedTimepoint += 4;
+
+          } else {
+            this.selectedTimepoint = 0;
+          }
+        }, 0.1); // Adjust the interval as needed
+      }
+      this.isPlaying = !this.isPlaying;
     }
+  }
 };
 </script>
 
@@ -256,5 +381,27 @@ input[type="range"] {
   width: 100%;
   height: 800px;
   margin-top: 20px;
+}
+
+#timepoint-slider {
+  width: 80%;
+  margin-top: 20px;
+  display: inline-block;
+}
+button {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 5px 10px;
+  font-size: 16px;
+  cursor: pointer;
+  background-color: #3498DB;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #2980B9;
 }
 </style>

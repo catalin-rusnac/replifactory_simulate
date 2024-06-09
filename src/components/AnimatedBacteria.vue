@@ -13,19 +13,20 @@
       </div>
     </div>
 
-    <div class="controls">
-      <!-- DNA animation speed slider -->
-      <label for="adaptationRate">Adaptation rate: {{ adaptationRate }}</label>
-      <input type="range" id="adaptationRate" class="slider" :min="0" :max="0.1" :step="0.001" v-model="adaptationRate" />
+<!--    <div class="controls">-->
+<!--      &lt;!&ndash; DNA animation speed slider &ndash;&gt;-->
+<!--      <label for="adaptationRate">Adaptation rate: {{ adaptationRate }}</label>-->
+<!--      <input type="range" id="adaptationRate" class="slider" :min="0" :max="0.1" :step="0.001" v-model="adaptationRate" />-->
 
-      <label for="bactGrowthRate">Growth Rate: {{ bactGrowthRate }}</label>
-      <input type="range" id="bactGrowthRate" class="slider" :min="-0.1" :max="2" :step="0.01" v-model="bactGrowthRate" />
-      <label for="dose">Current Concentration: {{ currentDose }}</label>
-      <input type="range" id="currentDose" class="slider" :min="0" :max="100" :step="1" v-model="currentDose" />
-      <!-- Slider for currentIC50-->
-      <label for="IC50">Half-Inhibitory Concentration: {{ IC50 }}</label>
-      <input type="range" id="IC50" class="slider" :min="0" :max="100" :step="1" v-model="IC50" />
-    </div>
+<!--      <label for="growthRate">Growth Rate: {{ growthRate }}</label>-->
+<!--      <input type="range" id="growthRate" class="slider" :min="-0.1" :max="2" :step="0.01" v-model="growthRate" />-->
+<!--      <label for="dose">Current Concentration: {{ currentDose }}</label>-->
+<!--      <input type="range" id="currentDose" class="slider" :min="0" :max="100" :step="1" v-model="currentDose" />-->
+<!--      &lt;!&ndash; Slider for currentIC50&ndash;&gt;-->
+<!--      <label for="IC50">Half-Inhibitory Concentration: {{ IC50 }}</label>-->
+<!--      <input type="range" id="IC50" class="slider" :min="0" :max="100" :step="1" v-model="IC50" />-->
+<!--    </div>-->
+
   </div>
 </template>
 
@@ -34,17 +35,33 @@ import lottie from 'lottie-web';
 
 export default {
   name: 'LottieAnimation',
+  props: {
+    IC50: {
+      type: Number,
+      default: 5,
+    },
+    IC50_initial: {
+      type: Number,
+      default: 5,
+    },
+    growthRate: {
+      type: Number,
+      default: 1,
+    },
+    adaptationRate: {
+      type: Number,
+      default: 0.005,
+    },
+    currentDose: {
+      type: Number,
+      default: 0,
+    },
+  },
   data() {
     return {
       bactPath: '/bact.json', // Path to the animation file
-      bactGrowthRate: 1, // Default speed
-
       dnaPath: '/DNA3.json', // Path to the animation file
-      adaptationRate: 0.005, // Default speed
-
       hammerPath: '/hammer2.json', // Path to the animation file
-      hammerSpeed: 1, // Default speed
-
       shieldPath: '/shield.json', // Path to the animation file
       shieldSize: 0, // Default size
       shieldOpacity: 0.7, // Default opacity
@@ -54,12 +71,14 @@ export default {
       deathPosition: 900, // Default death position
 
       animationSize: 800, // Default size
-      currentDose: 0,
-
       backgroundShade: 0, // Default green shade
       deathScale: 1, // Default death scale
-      IC50_initial: 5,
-      IC50: 5,
+
+      // growthRate: 1, // Default speed
+      // currentDose: 0,
+      // adaptationRate: 0.005, // Default speed
+      // IC50_initial: 5,
+      // IC50: 5,
     };
   },
   computed: {
@@ -68,24 +87,17 @@ export default {
     },
   },
   watch: {
-    IC50(newIC50) {
-      this.updateShieldProperties(newIC50);
-    },
-    bactGrowthRate(newRate) {
-      this.updateBactGrowth(newRate);
-    },
-    adaptationRate(newRate) {
-      this.updateAdaptation(newRate);
-    },
-    currentDose(newDose) {
-      this.updateBackgroundShade(newDose);
-    },
+    IC50: 'updateShieldProperties',
+    growthRate: 'updateGrowthRate',
+    adaptationRate: 'updateAdaptation',
+    currentDose: 'updateBackgroundShade',
+
   },
   mounted() {
     this.loadAllAnimations().then(() => {
       // Manually trigger watchers to set initial values
       this.updateShieldProperties(this.IC50);
-      this.updateBactGrowth(this.bactGrowthRate);
+      this.updateGrowthRate(this.growthRate);
       this.updateAdaptation(this.adaptationRate);
       this.updateBackgroundShade(this.currentDose);
     });
@@ -117,11 +129,12 @@ export default {
         this.shieldOpacity = MaxOpacity;
       }
     },
-    updateBactGrowth(newRate) {
-      const newSpeed = newRate * 30 / 2;
-      if (newSpeed < 0) {
-        const minAnimationSize = 600;
-        const maxAnimationSize = 800;
+    updateGrowthRate(newRate) {
+      const minAnimationSize = 600;
+      const maxAnimationSize = 800;
+      const newSpeed = newRate * 10 / 2;
+
+      if (newRate < 0) {
         const minRate = -0.1;
         const maxRate = 0;
         this.animationSize = minAnimationSize + (newRate - minRate) * (maxAnimationSize - minAnimationSize) / (maxRate - minRate);
@@ -138,9 +151,15 @@ export default {
       }
     },
     updateAdaptation(newRate) {
-      const newSpeed = this.convertAdaptationRateToSpeed(newRate);
+      const maxSpeed = 2;
+      const minSpeed = 0.1;
+      const maxRate = 0.1;
+      const minRate = 0.01;
+      const ratio = Math.abs((newRate - minRate) / (maxRate - minRate))
+      const newSpeed = minSpeed + ratio * (maxSpeed - minSpeed);
+
       this.dnaAnimation.setSpeed(newSpeed);
-      if (newRate > 0.01) {
+      if (newRate > minRate) {
         if (this.hammerAnimation.currentFrame === 90) {
           this.hammerAnimation.playSegments([0, 69], true);
         }
@@ -151,12 +170,6 @@ export default {
     },
     updateBackgroundShade(newDose) {
       this.backgroundShade = Math.round((newDose / 100) * 255);
-    },
-    convertAdaptationRateToSpeed(rate) {
-      const maxSpeed = 10;
-      const maxRate = 0.1;
-      const ratio = maxSpeed / maxRate;
-      return rate * ratio;
     },
     async loadGenericAnimation(path, container) {
       const response = await fetch(path);
@@ -171,11 +184,8 @@ export default {
     },
     async loadAllAnimations() {
       this.bactAnimation = await this.loadGenericAnimation(this.bactPath, this.$refs.bactAnimationContainer);
-      this.bactAnimation.setSpeed(0);
       this.dnaAnimation = await this.loadGenericAnimation(this.dnaPath, this.$refs.dnaAnimationContainer);
-      this.dnaAnimation.setSpeed(this.convertAdaptationRateToSpeed(this.adaptationRate));
       this.hammerAnimation = await this.loadGenericAnimation(this.hammerPath, this.$refs.hammerAnimationContainer);
-      this.hammerAnimation.setSpeed(0); // Initial hammer speed is 0
       const hammerAnimationData = this.hammerAnimation.animationData;
       hammerAnimationData.layers.splice(1, 1); // Assuming layer index 1 to be removed
       this.hammerAnimation.destroy();

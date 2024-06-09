@@ -1,26 +1,46 @@
 <template>
   <div>
-<!--  <TestAnimation/>-->
-    <AnimatedBacteria />
-
-
+    <AnimatedBacteria
+      :IC50="animationParams.IC50"
+      :IC50_initial="animationParams.IC50_initial"
+      :growthRate="animationParams.growthRate"
+      :adaptationRate="animationParams.adaptationRate"
+      :currentDose="animationParams.currentDose"
+    />
   </div>
   <div>
-  <SimulationControls msg="Welcome to Your Vue.js App"/>
-  </div>
+<!--    TODO: declare emit event to update the parameters in the parent component-->
+    <SimulationControls @updateParams="updateParams" />
 
+  </div>
 </template>
 
 <script>
 import SimulationControls from './components/SimulationControls.vue'
 import AnimatedBacteria from './components/AnimatedBacteria.vue'
-// import TestAnimation from './components/TestAnimation.vue'
+
 export default {
   name: 'App',
   components: {
     SimulationControls,
-    AnimatedBacteria,
-    // TestAnimation
+    AnimatedBacteria
+  },
+  data() {
+    return {
+      animationParams: {
+        IC50: 5,
+        IC50_initial: 5,
+        growthRate: 1,
+        adaptationRate: 0.005,
+        currentDose: 0
+      }
+    }
+  },
+  methods: {
+    updateParams(newParams) {
+      console.log(newParams);
+      this.animationParams = { ...this.animationParams, ...newParams };
+    }
   }
 }
 </script>

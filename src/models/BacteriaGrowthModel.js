@@ -1,6 +1,6 @@
 import {adaptationRate, doseEffective, muEffective} from './ModelEquations.js';
 import MorbidostatUpdater from './MorbidostatUpdater.js';
-import {plotModelSimulation} from "@/models/PlotModelSimulation";
+
 
 class BacteriaGrowthModel {
     constructor(options = {}) {
@@ -94,6 +94,10 @@ class BacteriaGrowthModel {
             let ic50 = this.ic50s[this.ic50s.length - 1][0] * Math.exp(adaptRate / 60);
             this.ic50s.push([ic50, this.timeCurrent]);
         }
+        else {
+            this.adaptationRates.push([0, this.timeCurrent]);
+            this.ic50s.push([this.ic50Initial, this.timeCurrent]);
+        }
 
         let newPopulation = this.population.length ? this.population[this.population.length - 1][0] * Math.exp(effectiveGrowthRate / 60) : this.initialPopulation;
         this.population.push([newPopulation, this.timeCurrent]);
@@ -144,10 +148,13 @@ class BacteriaGrowthModel {
             this.simulateExperimentMinute();
         }
     }
-    plotSimulation(simulationHours = 48) {
-        // use method below to plot the simulation
-        plotModelSimulation(this, simulationHours);
-    }
+    // plotSimulation(simulationHours = 48) {
+    //     // use method below to plot the simulation
+    //     // data, layout = plotModelSimulation(this, simulationHours);
+    //     // const (data, layout) = plotModelSimulation(this, simulationHours);
+    //     // unrwap output of plotModelSimulation
+    //     const plot = plotModelSimulation(this, simulationHours);
+    // }
     getSimulationEfficiency() {
         const dilutionFactor = this.updater.dilutionFactor;
         const addedVolume = this.updater.volumeVial * (dilutionFactor - 1);
