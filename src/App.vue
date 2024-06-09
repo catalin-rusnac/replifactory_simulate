@@ -1,6 +1,6 @@
 <template>
   <div>
-  <TestAnimation/>
+<!--  <TestAnimation/>-->
     <AnimatedBacteria />
 
 
@@ -14,13 +14,13 @@
 <script>
 import SimulationControls from './components/SimulationControls.vue'
 import AnimatedBacteria from './components/AnimatedBacteria.vue'
-import TestAnimation from './components/TestAnimation.vue'
+// import TestAnimation from './components/TestAnimation.vue'
 export default {
   name: 'App',
   components: {
     SimulationControls,
     AnimatedBacteria,
-    TestAnimation
+    // TestAnimation
   }
 }
 </script>

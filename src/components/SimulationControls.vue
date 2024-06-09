@@ -147,12 +147,12 @@ export default {
   methods: {
     runSimulation() {
       const updater = new MorbidostatUpdater(this.updaterSettings);
-      const model = new BacteriaGrowthModel({
+      this.model = new BacteriaGrowthModel({
         ...this.modelSettings,
         updater: updater
       });
-      model.plotSimulation(this.simulationHours);
-      let [volumeUsed, totalTime, ic50FoldChange] = model.getSimulationEfficiency();
+      this.model.plotSimulation(this.simulationHours);
+      let [volumeUsed, totalTime, ic50FoldChange] = this.model.getSimulationEfficiency();
       const volumePerIC50Doubling = volumeUsed / Math.log2(ic50FoldChange);
       const timePerIC50Doubling = totalTime / Math.log2(ic50FoldChange);
       this.volumeUsed = volumeUsed.toFixed(1);
@@ -161,12 +161,23 @@ export default {
       this.volumePerIC50Doubling = volumePerIC50Doubling.toFixed(1);
       this.timePerIC50Doubling = timePerIC50Doubling.toFixed(1);
 
-      const parameterPlotting = new ParameterPlotting(model);
+      const parameterPlotting = new ParameterPlotting(this.model);
 
       parameterPlotting.plot_mu();
       parameterPlotting.plot_adaptation_rate();
+    },
+    parametersAtTimepoint(timepoint_index) {
+          return {
+              population: this.model.population[timepoint_index][0],
+              generation: this.model.generations[timepoint_index][0],
+              drugConcentration: this.model.doses[timepoint_index][0],
+              ic50: this.model.ic50s[timepoint_index][0],
+              effectiveGrowthRate: this.model.effectiveGrowthRates[timepoint_index][0],
+              adaptationRate: this.model.adaptationRates[timepoint_index][0],
+              time: this.model.population[timepoint_index][1]
+          };
+      }
     }
-  }
 };
 </script>
 
