@@ -7,7 +7,7 @@
     "build": "vue-cli-service build",
     "lint": "vue-cli-service lint",
     "predeploy": "npm run build",
-    "deploy:github": "set DEPLOY_TARGET=github && npm run build && gh-pages -d dist"
+    "deploy:github": "cross-env DEPLOY_TARGET=github npm run build && gh-pages -d dist"
   },
   "dependencies": {
     "@coreui/vue": "^5.1.0",
