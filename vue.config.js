@@ -1,4 +1,4 @@
-  module.exports = {
+module.exports = {
   publicPath: '/replifactory_simulate/',
   outputDir: 'dist',
   devServer: {
