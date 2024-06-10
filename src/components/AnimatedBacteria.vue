@@ -38,7 +38,7 @@ export default {
   props: {
     IC50: {
       type: Number,
-      default: 5,
+      default: 4,
     },
     IC50_initial: {
       type: Number,
@@ -59,7 +59,7 @@ export default {
   },
   data() {
     return {
-      bactPath: '/bact.json', // Path to the animation file
+      bactPath: '/replifactory_simulate/bact.json', // Path to the animation file
       dnaPath: '/DNA3.json', // Path to the animation file
       hammerPath: '/hammer2.json', // Path to the animation file
       shieldPath: '/shield.json', // Path to the animation file
